@@ -13,6 +13,11 @@ typedef struct
         char name[248];
 } device_info;
 
+typedef struct {
+        int socket;
+        int status;
+} connection_info;
+
 device_info select_target()
 {
         device_info target_device_info = {0};
@@ -97,25 +102,33 @@ device_info select_target()
         return target_device_info;
 }
 
-int main(int argc, char *argv[])
-{
-        device_info target = select_target();
-        printf("Target address: %s, name: %s\n", target.addr, target.name);
+connection_info connect_target(device_info target) {
+        connection_info target_connection_info = {0};
         struct sockaddr_rc addr = {0};
         int s, status;
-        char buf[1024] = {0};
         s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
         addr.rc_family = AF_BLUETOOTH;
         addr.rc_channel = (uint8_t) 1;
         str2ba(target.addr, &addr.rc_bdaddr);
         status = connect(s, (struct sockaddr *)&addr, sizeof(addr));
+        target_connection_info.socket = s;
+        target_connection_info.status = status;
+        return target_connection_info;
+}
+
+int main(int argc, char *argv[])
+{
+        device_info target = select_target();
+        printf("Target address: %s, name: %s\n", target.addr, target.name);
+        connection_info target_connection_info = connect_target(target);
+        char buf[1024] = {0};
         printf("Enter 'exit' to disconnect\n");
-        while (status >= 0) {
+        while (target_connection_info.status >= 0) {
                 printf("send message > ");
                 fgets(buf, sizeof(buf), stdin);
                 buf[strlen(buf) - 1] = '\0';
-                status = write(s, buf, sizeof(buf));
-                if (status < 0) {
+                target_connection_info.status = write(target_connection_info.socket, buf, sizeof(buf));
+                if (target_connection_info.status < 0) {
                         perror("connection_fail");
                         break;
                 }
@@ -124,6 +137,6 @@ int main(int argc, char *argv[])
                         break;
                 }
         }
-        close(s);
+        close(target_connection_info.socket);
         return 0;
 }
